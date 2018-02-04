@@ -5,7 +5,7 @@ import (
 )
 
 func TestEncodeActionTopic(t *testing.T) {
-	topics := Topics{
+	routes := Routes{
 		"foo": "v1/basement/foo",
 		"bar": "v1/bar",
 	}
@@ -18,7 +18,7 @@ func TestEncodeActionTopic(t *testing.T) {
 	}
 
 	for actionType, result := range expected {
-		encoded := encodeActionType(actionType, topics)
+		encoded := encodeActionType(actionType, routes)
 		if encoded != result {
 			t.Error(
 				"Encoding action type:", actionType,
@@ -29,7 +29,7 @@ func TestEncodeActionTopic(t *testing.T) {
 }
 
 func TestDecodeTopic(t *testing.T) {
-	topics := Topics{
+	routes := Routes{
 		"foo": "v1/basement/foo",
 		"bar": "v1/bar",
 	}
@@ -42,7 +42,7 @@ func TestDecodeTopic(t *testing.T) {
 	}
 
 	for topic, result := range expected {
-		decoded := decodeTopic(topic, topics)
+		decoded := decodeTopic(topic, routes)
 		if decoded != result {
 			t.Error(
 				"Decoding topic:", topic,

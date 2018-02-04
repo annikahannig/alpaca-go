@@ -11,21 +11,16 @@ import (
 
 type Dispatch func(Action) error
 
-type Topics map[string]string
-
-type Client struct {
-	client mqtt.Client
-	topics Topics
-}
+type Routes map[string]string
 
 /*
  Decode an incoming mqtt message and create an
  action from it's topic and payload
 */
-func decodeMessage(msg mqtt.Message, topics Topics) Action {
+func decodeMessage(msg mqtt.Message, routes Routes) Action {
 	// Make action
 	action := Action{
-		Type:    decodeTopic(msg.Topic(), topics),
+		Type:    decodeTopic(msg.Topic(), routes),
 		Payload: msg.Payload(),
 	}
 
@@ -54,7 +49,7 @@ func encodeMessagePayload(action Action) ([]byte, error) {
 
     v1/upstairs/lights/SET_VALUE
 */
-func encodeActionType(actionType string, topics Topics) string {
+func encodeActionType(actionType string, routes Routes) string {
 	tokens := strings.SplitN(actionType, "/", 2)
 	if len(tokens) == 1 {
 		return actionType // Nothing to do here
@@ -64,7 +59,7 @@ func encodeActionType(actionType string, topics Topics) string {
 		return actionType // Still nothing to do here
 	}
 
-	route, ok := topics[tokens[0][1:]]
+	route, ok := routes[tokens[0][1:]]
 	if !ok {
 		log.Println("Warning: Could not expand route for", actionType)
 		return actionType
@@ -76,13 +71,13 @@ func encodeActionType(actionType string, topics Topics) string {
 /*
  Decode topic from message (for use in action Type)
 */
-func decodeTopic(topic string, topics Topics) string {
+func decodeTopic(topic string, routes Routes) string {
 	tokens := strings.Split(topic, "/")
 	if len(tokens) == 1 {
 		return topic // Nothing to do here
 	}
 
-	for handle, route := range topics {
+	for handle, route := range routes {
 		if strings.HasPrefix(topic, route) {
 			return "@" + strings.Replace(topic, route, handle, 1)
 		}
@@ -95,10 +90,10 @@ func decodeTopic(topic string, topics Topics) string {
  Create dispatch function:
  Encode action for transport and publish to MQTT
 */
-func makeDispatch(client mqtt.Client, topics Topics) Dispatch {
+func makeDispatch(client mqtt.Client, routes Routes) Dispatch {
 	dispatch := func(action Action) error {
 		// Prepare payload
-		topic := encodeActionType(action.Type, topics)
+		topic := encodeActionType(action.Type, routes)
 		payload, err := encodeMessagePayload(action)
 		if err != nil {
 			return err
@@ -114,10 +109,10 @@ func makeDispatch(client mqtt.Client, topics Topics) Dispatch {
 	return dispatch
 }
 
-func makeOnConnectHandler(topics Topics) mqtt.OnConnectHandler {
+func makeOnConnectHandler(routes Routes) mqtt.OnConnectHandler {
 	handler := func(client mqtt.Client) {
 		// Subscribe to topics
-		for _, base := range topics {
+		for _, base := range routes {
 			// We are interested in all messages on this topic
 			topic := base + "/#"
 
@@ -137,9 +132,9 @@ func makeOnConnectHandler(topics Topics) mqtt.OnConnectHandler {
  Create message handler for receiving messages, decoding the actions and
  dispatching them into the actions channel.
 */
-func makeMessageHandler(actions Actions, topics Topics) mqtt.MessageHandler {
+func makeMessageHandler(actions Actions, routes Routes) mqtt.MessageHandler {
 	handler := func(client mqtt.Client, msg mqtt.Message) {
-		action := decodeMessage(msg, topics)
+		action := decodeMessage(msg, routes)
 		// Forward to handler
 		actions <- action
 	}
@@ -151,7 +146,7 @@ func makeMessageHandler(actions Actions, topics Topics) mqtt.MessageHandler {
  Connect to MQTT broker and create action channel
  and dispatch function.
 */
-func DialMqtt(brokerUri string, topics Topics) (Actions, Dispatch) {
+func DialMqtt(brokerUri string, routes Routes) (Actions, Dispatch) {
 	opts := mqtt.NewClientOptions()
 
 	// Basic configuration
@@ -162,21 +157,21 @@ func DialMqtt(brokerUri string, topics Topics) (Actions, Dispatch) {
 	opts.SetPingTimeout(1 * time.Second)
 	opts.SetKeepAlive(2 * time.Second)
 
-	return Connect(opts, topics)
+	return Connect(opts, routes)
 }
 
 /*
  Connect to MQTT broker like DialMqtt, but give the user
  more control over the client options.
 */
-func Connect(opts *mqtt.ClientOptions, topics Topics) (Actions, Dispatch) {
+func Connect(opts *mqtt.ClientOptions, routes Routes) (Actions, Dispatch) {
 
 	// Create actions channel
 	actions := make(Actions)
 
 	// Register handler funcs
-	opts.SetOnConnectHandler(makeOnConnectHandler(topics))
-	opts.SetDefaultPublishHandler(makeMessageHandler(actions, topics))
+	opts.SetOnConnectHandler(makeOnConnectHandler(routes))
+	opts.SetDefaultPublishHandler(makeMessageHandler(actions, routes))
 
 	client := mqtt.NewClient(opts)
 	if token := client.Connect(); token.Wait() && token.Error() != nil {
@@ -184,7 +179,7 @@ func Connect(opts *mqtt.ClientOptions, topics Topics) (Actions, Dispatch) {
 	}
 
 	// Create dispatch function
-	dispatch := makeDispatch(client, topics)
+	dispatch := makeDispatch(client, routes)
 
 	return actions, dispatch
 }
