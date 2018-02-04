@@ -13,6 +13,11 @@ type Dispatch func(Action) error
 
 type Topics map[string]string
 
+type Client struct {
+	client mqtt.Client
+	topics Topics
+}
+
 /*
  Decode an incoming mqtt message and create an
  action from it's topic and payload
@@ -22,17 +27,13 @@ func decodeMessage(msg mqtt.Message) (Action, error) {
 	tokens := strings.Split(msg.Topic(), "/")
 	actionType := tokens[len(tokens)-1]
 
-	// Decode payload
-	var payload interface{}
-	var err error
-
 	// Make action
 	action := Action{
 		Type:    actionType,
-		Payload: payload,
+		Payload: msg.Payload,
 	}
 
-	return action, err
+	return action, nil
 }
 
 /*
@@ -45,13 +46,53 @@ func encodeMessagePayload(action Action) ([]byte, error) {
 }
 
 /*
+ Decode topic from message (for use in
+ action Type)
+*/
+func decodeActionTopic(topic string, topics Topics) string {
+	return ""
+}
+
+/*
+ Encode topic from action type:
+ In case actions are prefixed with an @ we make a lookup
+ on the topics registry and expand the topic:
+
+ Example:
+
+    @lights/SET_VALUE
+
+ will expand to
+
+    v1/upstairs/lights/SET_VALUE
+*/
+func encodeActionType(actionType string, topics Topics) string {
+	tokens := strings.SplitN(actionType, "/", 2)
+	if len(tokens) == 1 {
+		return actionType // Nothing to do here
+	}
+
+	if !strings.HasPrefix(tokens[0], "@") {
+		return actionType // Still nothing to do here
+	}
+
+	route, ok := topics[tokens[0][1:]]
+	if !ok {
+		log.Println("Warning: Could not expand route for", actionType)
+		return actionType
+	}
+
+	return route + "/" + strings.Join(tokens[1:], "/")
+}
+
+/*
  Create dispatch function:
  Encode action for transport and publish to MQTT
 */
-func makeDispatch(client mqtt.Client, baseTopic string) Dispatch {
+func makeDispatch(client mqtt.Client, topics Topics) Dispatch {
 	dispatch := func(action Action) error {
 		// Prepare payload
-		topic := baseTopic + "/" + action.Type
+		topic := encodeActionType(action.Type, topics)
 		payload, err := encodeMessagePayload(action)
 		if err != nil {
 			return err
@@ -67,64 +108,82 @@ func makeDispatch(client mqtt.Client, baseTopic string) Dispatch {
 	return dispatch
 }
 
+func makeOnConnectHandler(topics Topics) mqtt.OnConnectHandler {
+	handler := func(client mqtt.Client) {
+		// Subscribe to topics
+		for _, base := range topics {
+			// We are interested in all messages on this topic
+			topic := base + "/#"
+
+			token := client.Subscribe(topic, 0, nil)
+			if token.Wait() && token.Error() != nil {
+				panic(token.Error())
+			}
+
+			log.Println("Subscribed to topic:", topic)
+		}
+	}
+
+	return handler
+}
+
 /*
- Connect to MQTT broker and create action channel
- and dispatch function.
+ Create message handler for receiving messages, decoding the actions and
+ dispatching them into the actions channel.
 */
-func Dial(brokerUri string) (chan Action, Dispatch, error) {
-	actions := make(chan Action)
-
-	opts := mqtt.NewClientOptions()
-
-	// Basic configuration
-	opts.AddBroker(brokerUri)
-	opts.SetClientID("daliqtt")
-
-	// Reconnects and timeouts
-	opts.SetMaxReconnectInterval(15.0 * time.Second)
-	opts.SetPingTimeout(1 * time.Second)
-	opts.SetKeepAlive(2 * time.Second)
-
-	// Register handler funcs
-	opts.SetDefaultPublishHandler(func(client mqtt.Client, msg mqtt.Message) {
+func makeMessageHandler(actions Actions) mqtt.MessageHandler {
+	handler := func(client mqtt.Client, msg mqtt.Message) {
 		action, err := decodeMessage(msg)
 		if err != nil {
 			log.Println("Error while decoding message:", err)
 			return
 		}
 
-		// Forward to service
+		// Forward to handler
 		actions <- action
-	})
+	}
 
-	opts.SetOnConnectHandler(func(client mqtt.Client) {
-		// Subscribe to topic
-		/*
-			topic := config.BaseTopic + "/#"
-			if token := client.Subscribe(topic, 0, nil); token.Wait() && token.Error() != nil {
-				panic(token.Error())
-			}
+	return handler
+}
 
-			log.Println("Subscribed to topic:", topic)
+/*
+ Connect to MQTT broker and create action channel
+ and dispatch function.
+*/
+func DialMqtt(brokerUri string, topics Topics) (Actions, Dispatch) {
+	opts := mqtt.NewClientOptions()
 
-			// Subscribe to meta topic
-			topic = "_meta/#"
-			if token := client.Subscribe(topic, 0, nil); token.Wait() && token.Error() != nil {
-				panic(token.Error())
-			}
+	// Basic configuration
+	opts.AddBroker(brokerUri)
 
-			log.Println("Subscribed to topic:", topic)
-		*/
-		log.Println("Implement this.")
-	})
+	// Reconnects and timeouts
+	opts.SetMaxReconnectInterval(15.0 * time.Second)
+	opts.SetPingTimeout(1 * time.Second)
+	opts.SetKeepAlive(2 * time.Second)
+
+	return Connect(opts, topics)
+}
+
+/*
+ Connect to MQTT broker like DialMqtt, but give the user
+ more control over the client options.
+*/
+func Connect(opts *mqtt.ClientOptions, topics Topics) (Actions, Dispatch) {
+
+	// Create actions channel
+	actions := make(Actions)
+
+	// Register handler funcs
+	opts.SetOnConnectHandler(makeOnConnectHandler(topics))
+	opts.SetDefaultPublishHandler(makeMessageHandler(actions))
 
 	client := mqtt.NewClient(opts)
 	if token := client.Connect(); token.Wait() && token.Error() != nil {
-		return nil, nil, token.Error()
+		panic(token.Error())
 	}
 
 	// Create dispatch function
-	dispatch := makeDispatch(client, "null")
+	dispatch := makeDispatch(client, topics)
 
-	return actions, dispatch, nil
+	return actions, dispatch
 }
