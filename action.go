@@ -5,9 +5,11 @@ import (
 	"fmt"
 )
 
+type Payload interface{}
+
 type Action struct {
-	Type    string      `json:"type"`
-	Payload interface{} `json:"payload"`
+	Type    string  `json:"type"`
+	Payload Payload `json:"payload"`
 }
 
 type Actions chan Action
