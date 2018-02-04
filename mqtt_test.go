@@ -28,6 +28,27 @@ func TestEncodeActionTopic(t *testing.T) {
 	}
 }
 
-func TestDecodeActionTopic(t *testing.T) {
+func TestDecodeTopic(t *testing.T) {
+	topics := Topics{
+		"foo": "v1/basement/foo",
+		"bar": "v1/bar",
+	}
+
+	expected := map[string]string{
+		"foo/BAR":               "foo/BAR",
+		"v1/bar/FNORD":          "@bar/FNORD",
+		"@bar/FOO":              "@bar/FOO",
+		"v1/basement/foo/FNORD": "@foo/FNORD",
+	}
+
+	for topic, result := range expected {
+		decoded := decodeTopic(topic, topics)
+		if decoded != result {
+			t.Error(
+				"Decoding topic:", topic,
+				"yielded:", decoded, " expected was:", result,
+			)
+		}
+	}
 
 }

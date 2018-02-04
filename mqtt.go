@@ -22,18 +22,14 @@ type Client struct {
  Decode an incoming mqtt message and create an
  action from it's topic and payload
 */
-func decodeMessage(msg mqtt.Message) (Action, error) {
-	// Decode topic
-	tokens := strings.Split(msg.Topic(), "/")
-	actionType := tokens[len(tokens)-1]
-
+func decodeMessage(msg mqtt.Message, topics Topics) Action {
 	// Make action
 	action := Action{
-		Type:    actionType,
-		Payload: msg.Payload,
+		Type:    decodeTopic(msg.Topic(), topics),
+		Payload: msg.Payload(),
 	}
 
-	return action, nil
+	return action
 }
 
 /*
@@ -43,14 +39,6 @@ func encodeMessagePayload(action Action) ([]byte, error) {
 	payload, err := json.Marshal(action.Payload)
 
 	return payload, err
-}
-
-/*
- Decode topic from message (for use in
- action Type)
-*/
-func decodeActionTopic(topic string, topics Topics) string {
-	return ""
 }
 
 /*
@@ -83,6 +71,24 @@ func encodeActionType(actionType string, topics Topics) string {
 	}
 
 	return route + "/" + strings.Join(tokens[1:], "/")
+}
+
+/*
+ Decode topic from message (for use in action Type)
+*/
+func decodeTopic(topic string, topics Topics) string {
+	tokens := strings.Split(topic, "/")
+	if len(tokens) == 1 {
+		return topic // Nothing to do here
+	}
+
+	for handle, route := range topics {
+		if strings.HasPrefix(topic, route) {
+			return "@" + strings.Replace(topic, route, handle, 1)
+		}
+	}
+
+	return topic
 }
 
 /*
@@ -131,14 +137,9 @@ func makeOnConnectHandler(topics Topics) mqtt.OnConnectHandler {
  Create message handler for receiving messages, decoding the actions and
  dispatching them into the actions channel.
 */
-func makeMessageHandler(actions Actions) mqtt.MessageHandler {
+func makeMessageHandler(actions Actions, topics Topics) mqtt.MessageHandler {
 	handler := func(client mqtt.Client, msg mqtt.Message) {
-		action, err := decodeMessage(msg)
-		if err != nil {
-			log.Println("Error while decoding message:", err)
-			return
-		}
-
+		action := decodeMessage(msg, topics)
 		// Forward to handler
 		actions <- action
 	}
@@ -175,7 +176,7 @@ func Connect(opts *mqtt.ClientOptions, topics Topics) (Actions, Dispatch) {
 
 	// Register handler funcs
 	opts.SetOnConnectHandler(makeOnConnectHandler(topics))
-	opts.SetDefaultPublishHandler(makeMessageHandler(actions))
+	opts.SetDefaultPublishHandler(makeMessageHandler(actions, topics))
 
 	client := mqtt.NewClient(opts)
 	if token := client.Connect(); token.Wait() && token.Error() != nil {
