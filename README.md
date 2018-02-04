@@ -22,7 +22,7 @@ is now as easy as:
 ```golang
 dispatch, actions := alpaca.DialMqtt(
     "tcp://user:pass@localhost:1889",
-    alpaca.Topics{
+    alpaca.Routes{
         "lights": "v1/upstairs/lights",
         "meta": "v1/_meta/",
     })
