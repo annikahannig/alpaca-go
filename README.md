@@ -2,7 +2,7 @@
 
 # Alpaca
 
-A library for writing services on a MQTT message bus.
+An opinionated library for writing services on a MQTT message bus.
 
 
 ## Why?
