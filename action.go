@@ -10,6 +10,8 @@ type Action struct {
 	Payload interface{} `json:"payload"`
 }
 
+type Actions chan Action
+
 /*
  Decode the payload.
  If an action is received from MQTT, the payload
