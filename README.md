@@ -13,7 +13,7 @@ TODO: figure out.
 Creating a new service in your network
 is now as easy as:
 
-    conn, err := alpaca.Dial("mqtt://user:pass@localhost:1889")
+    conn, err := alpaca.Dial("tcp://user:pass@localhost:1889")
     if err != nil {
         panic(err)
     }
@@ -26,8 +26,8 @@ is now as easy as:
     handle(dispatch, actions)
     
 
+With a service handler like:
 
-With a service handler
     const GET_LIGHT_VALUE_REQUEST = "@lights/GET_LIGHT_VALUE_REQUEST"
 
     func handle(dispatch alpaca.Dispatch, actions chan alpaca.Action) {
@@ -36,8 +36,8 @@ With a service handler
         // Handle incoming actions
         for action := range actions {
             switch action.Type {
-                case GET_LIGHT_VALUE_REQUEST:
-                    dispatch(GetLightValueSuccess(lightValue(action.Payload
+            case GET_LIGHT_VALUE_REQUEST:
+                dispatch(GetLightValueSuccess(42))
             }
         }
     }
