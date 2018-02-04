@@ -56,6 +56,6 @@ func handle(actions alpaca.Actions, dispatch alpaca.Dispatch) {
 }
 ```
 
-For a simple working example please checkout the [examples/simple/simple.go](https://github.com/mhannig/alpaca-go/examples/simple/simple.go) string reversal service.
+For a simple working example please checkout the [examples/simple/simple.go](https://github.com/mhannig/alpaca-go/blob/master/examples/simple/simple.go) string reversal service.
 
 
