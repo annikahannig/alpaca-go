@@ -1,7 +1,6 @@
 package alpaca
 
 import (
-	"encoding/json"
 	"testing"
 )
 
