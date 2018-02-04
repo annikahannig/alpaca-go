@@ -23,16 +23,16 @@ I guess this will later need a python port aswell.
 Creating a new service in your network
 is now as easy as:
 
-    conn, err := alpaca.DialMqtt("tcp://user:pass@localhost:1889")
+    dispatch, actions, err := alpaca.DialMqtt(
+        "tcp://user:pass@localhost:1889",
+        alpaca.Topics{
+            "lights": "v1/upstairs/lights",
+            "meta": "v1/_meta/",
+        })
     if err != nil {
         panic(err)
     }
 
-    dispatch, actions := conn.Join(alpaca.Topics{
-        "lights": "v1/upstairs/lights",
-        "meta": "v1/_meta/",
-    })
-    
     handle(dispatch, actions)
     
 
