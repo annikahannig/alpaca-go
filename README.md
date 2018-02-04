@@ -47,7 +47,7 @@ func handle(actions alpaca.Actions, dispatch alpaca.Dispatch) {
     for action := range actions {
         switch action.Type {
         case SET_LIGHT_VALUE_REQUEST:
-            var payload Light
+            var light Light
             action.DecodePayload(&payload)
             setLightValue(light.Id, light.Value) 
             dispatch(SetLightValueSuccess(light))
