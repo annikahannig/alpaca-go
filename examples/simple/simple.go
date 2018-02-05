@@ -26,13 +26,12 @@ func ReverseError(err error) alpaca.Action {
 	}
 }
 
-func handleReverse(action alpaca.Action, dispatch alpaca.Dispatch) {
+func handleReverse(action alpaca.Action) alpaca.Action {
 	var payload string
 	err := action.DecodePayload(&payload)
 	if err != nil {
 		log.Println("Could not decode payload:", err)
-		dispatch(ReverseError(err))
-		return
+		return ReverseError(err)
 	}
 
 	reverse := ""
@@ -41,7 +40,7 @@ func handleReverse(action alpaca.Action, dispatch alpaca.Dispatch) {
 	}
 
 	log.Println("Reversed string:", payload, " -> ", reverse)
-	dispatch(ReverseSuccess(reverse))
+	return ReverseSuccess(reverse)
 }
 
 func main() {
@@ -55,7 +54,7 @@ func main() {
 	for action := range actions {
 		switch action.Type {
 		case REVERSE_REQUEST:
-			handleReverse(action, dispatch)
+			dispatch(handleReverse(action))
 		}
 	}
 
