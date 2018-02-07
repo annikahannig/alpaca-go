@@ -5,7 +5,7 @@
 An opinionated library for writing services on a MQTT message bus.
 
 
-_IMPORTANT: I deceided to move this into an org: [CamelIoT](https://github.com/cameliot/alpaca")_
+**IMPORTANT: I deceided to move this into an org: [CamelIoT](https://github.com/cameliot/alpaca")**
 
 
 ## Why?
